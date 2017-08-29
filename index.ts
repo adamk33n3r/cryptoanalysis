@@ -16,17 +16,21 @@ const logger = new winston.Logger({
     new winston.transports.Console({ colorize: true, timestamp: tsFormat, level: 'info' }),
     new winston.transports.File({ filename: `${logDir}/debug.log`, timestamp: tsFormat, name: 'file#debug' }),
     new winston.transports.File({ filename: `${logDir}/info.log`, timestamp: tsFormat, level: 'info', name: 'file#info' }),
-    //new WinstonNotifier({ level: 'info' }),
+    // new WinstonNotifier({ level: 'info' }),
   ],
 });
 
 logger.level = 'debug';
+
+const watchedPools = process.argv.slice(2);
+logger.info('Watching Pools:', watchedPools.join(', '));
 
 const ws = new WebSocket('wss://ws.blockchain.info/inv');
 
 ws.on('open', () => {
   log('WebSocket opened');
   sendOp('blocks_sub');
+  // sendOp('ping_block');
 });
 
 ws.on('message', (data) => {
@@ -38,7 +42,8 @@ ws.on('message', (data) => {
     case 'block':
       const foundBy = data.x.foundBy.description;
       const message = `New block found by ${foundBy}!`;
-      log(message, foundBy === 'SlushPool');
+      logger.debug(data);
+      log(message, watchedPools.indexOf(foundBy) > -1);
       break;
     default:
       log('Unhandled op: ' + data['op'], false, 'red');
