@@ -3,6 +3,9 @@ import * as winston from 'winston';
 import * as WebSocket from 'ws';
 import * as notifier from 'node-notifier';
 
+import { PushJet } from './PushJet';
+const pushjet = new PushJet();
+
 //import { WinstonNotifier } from './WinstonNotifier';
 
 const logDir = 'log';
@@ -25,7 +28,12 @@ logger.level = 'debug';
 const watchedPools = process.argv.slice(2);
 logger.info('Watching Pools:', watchedPools.join(', '));
 
-const ws = new WebSocket('wss://ws.blockchain.info/inv');
+let ws: WebSocket;
+
+function createWebSocket() {
+  ws = new WebSocket('wss://ws.blockchain.info/inv');
+}
+createWebSocket();
 
 ws.on('open', () => {
   log('WebSocket opened');
@@ -33,11 +41,14 @@ ws.on('open', () => {
   // sendOp('ping_block');
 });
 
+let tm: NodeJS.Timer;
+
 ws.on('message', (data) => {
   data = JSON.parse(data);
   switch (data['op']) {
     case 'pong':
       log('heartbeat', false, 'debug');
+      clearTimeout(tm);
       break;
     case 'block':
       const foundBy = data.x.foundBy.description;
@@ -51,18 +62,42 @@ ws.on('message', (data) => {
   }
 });
 
+ws.on('error', (e) => {
+  log(e, false, 'error');
+});
+
+ws.on('close', (thing) => {
+  log('on close', false, 'error');
+  log(thing, false, 'error');
+});
+
 function sendOp(op: string) {
     ws.send(JSON.stringify({ op }));
 }
 
 function heartbeat(ws) {
-  sendOp('ping');
+  try {
+    sendOp('ping');
+    tm = setTimeout(() => {
+      log('it has been 5 seconds of waiting for a heartbeat. probably disconnected.', false, 'error');
+    }, 5000);
+  } catch (e) {
+    log(e, false, 'error');
+    if (e.message === 'not opened') {
+      log('try reconnect!', false, 'error');
+      createWebSocket();
+    }
+  }
 }
 
 function log(message: string = '', notify: boolean = false, level: string = 'info') {
   logger[level](message);
   if (notify) {
     notifier.notify(message);
+    pushjet.sendMessage(message)
+    .catch((e) => {
+      logger.error(e);
+    });
   }
 }
 

@@ -1,0 +1,9 @@
+{
+  "notifications": {
+    "pushjet": {
+      "api": "https://api.pushjet.io",
+      "public": "b6e8-db7e55-a9082bc6dfa9-20e5a-a827f70e1",
+      "level": 3
+    }
+  }
+}
