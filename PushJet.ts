@@ -17,6 +17,9 @@ export class PushJet extends Notification {
   constructor() {
     super();
     this.config = config.notifications.pushjet;
+    if (this.config.secret == null) {
+      throw new Error('You must specify JetPush secret in config');
+    }
   }
 
   public sendMessage(message: string, title?: string) {
