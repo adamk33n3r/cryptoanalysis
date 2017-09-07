@@ -61,7 +61,7 @@ export class WebSocket {
       case 'block':
         const foundBy = data.x.foundBy.description;
         const message = `New block found by ${foundBy}!`;
-        this.log(stringData);
+        this.log(stringData, false, 'debug');
         this.log(message, this.watchedPools.indexOf(foundBy) > -1);
         break;
       default:
