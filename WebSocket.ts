@@ -1,11 +1,17 @@
 import * as WS from 'ws';
+import { Logger } from './Logger';
 
 export class WebSocket {
   protected socket: WS;
-  protected tm: NodeJS.Timer;
+  protected heartbeatCheckTimer: NodeJS.Timer;
+  protected heartbeatIntervalTimer: NodeJS.Timer;
+  protected started: number = 0;
 
-  constructor(protected watchedPools: string[], protected log: Function) {
-    this.log('Watching Pools: ' + watchedPools.join(', '));
+  constructor(protected watchedPools: string[], protected logger: Logger) {
+  }
+
+  public start() {
+    this.logger.log('Watching Pools: ' + this.watchedPools.join(', '));
     this.createWebSocket();
   }
 
@@ -18,24 +24,28 @@ export class WebSocket {
     this.socket.on('error', (e) => this.onError(e));
     this.socket.on('close', (thing) => this.onClose(thing));
     this.socket.on('message', (data) => this.onMessage(data));
-    setInterval(() => this.heartbeat(), 30000);
+    this.started++;
+    this.logger.log(`WebSocket has been started ${this.started} times.`);
+    clearInterval(this.heartbeatIntervalTimer);
+    this.heartbeatIntervalTimer = setInterval(() => this.heartbeat(), 30000);
   }
 
   protected sendOp(op: string) {
-      this.socket.send(JSON.stringify({ op }));
+    this.socket.send(JSON.stringify({ op }));
+    this.logger.log(`sendOp: ${op} WS: ${this.started}`, false, 'debug');
   }
 
   protected heartbeat() {
     try {
       this.sendOp('ping');
-      this.tm = setTimeout(() => {
-        this.log('it has been 5 seconds of waiting for a heartbeat. probably disconnected.', false, 'error');
+      this.heartbeatCheckTimer = setTimeout(() => {
+        this.logger.log('it has been 5 seconds of waiting for a heartbeat. probably disconnected.', false, 'error');
         this.createWebSocket();
       }, 5000);
     } catch (e) {
-      this.log(e, false, 'error');
+      this.logger.log(e, false, 'error');
       if (e.message === 'not opened') {
-        this.log('try reconnect!', false, 'error');
+        this.logger.log('try reconnect!', false, 'error');
         this.createWebSocket();
       }
     }
@@ -46,7 +56,7 @@ export class WebSocket {
    */
 
   protected onOpen() {
-    this.log('WebSocket opened');
+    this.logger.log('WebSocket opened');
     this.sendOp('blocks_sub');
     //this.sendOp('ping_block');
   }
@@ -55,27 +65,28 @@ export class WebSocket {
     const data = JSON.parse(stringData);
     switch (data['op']) {
       case 'pong':
-        this.log('heartbeat', false, 'debug');
-        clearTimeout(this.tm);
+        this.logger.log('heartbeat', false, 'debug');
+        clearTimeout(this.heartbeatCheckTimer);
         break;
       case 'block':
         const foundBy = data.x.foundBy.description;
         const message = `New block found by ${foundBy}!`;
-        this.log(stringData, false, 'debug');
-        this.log(message, this.watchedPools.indexOf(foundBy) > -1);
+        this.logger.log(stringData, false, 'debug');
+        this.logger.log(message, this.watchedPools.indexOf(foundBy) > -1);
         break;
       default:
-        this.log('Unhandled op: ' + data['op'], false, 'red');
+        this.logger.log('Unhandled op: ' + data['op'], false, 'red');
         break;
     }
   }
 
   protected onError(e) {
-    this.log(e, false, 'error');
+    this.logger.log(e, false, 'error');
   }
 
   protected onClose(thing) {
-    this.log('on close', false, 'error');
-    this.log(thing, false, 'error');
+    this.logger.log('on close', false, 'error');
+    this.logger.log(thing, false, 'error');
   }
 }
+

@@ -8,9 +8,9 @@ export class PushJet extends Notification {
   private secret: string;
   private pubkey: string;
   private config: {
+    enabled: boolean;
     api: string;
     secret: string;
-    public: string;
     level: number;
   };
 
